@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stainless Org Chart</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f4f0; color: #1a1a1a; min-height: 100vh; }
+  #header { padding: 14px 20px; background: #fff; border-bottom: 1px solid #e5e4e0; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  #header h1 { font-size: 14px; font-weight: 600; color: #1a1a1a; flex-shrink: 0; letter-spacing: -0.01em; }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .leg { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #555; }
+  .leg-dot { width: 11px; height: 11px; border-radius: 2px; }
+  .leg-sep { width: 1px; height: 14px; background: #ddd; margin: 0 2px; }
+  .dash-swatch { width: 22px; height: 11px; border-radius: 2px; border: 1.5px dashed #888; }
+  .solid-swatch { width: 22px; height: 11px; border-radius: 2px; border: 1.5px solid #888; }
+  #hint { font-size: 11px; color: #999; margin-left: auto; }
+  #canvas { width: 100%; height: calc(100vh - 52px); overflow: hidden; }
+  svg { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>Stainless — Org Chart</h1>
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:#B5D4F4;border:1px solid #378ADD"></div>Engineering</div>
+    <div class="leg"><div class="leg-dot" style="background:#9FE1CB;border:1px solid #1D9E75"></div>Business Ops</div>
+    <div class="leg"><div class="leg-dot" style="background:#FAC775;border:1px solid #BA7517"></div>Sales</div>
+    <div class="leg"><div class="leg-dot" style="background:#F5C4B3;border:1px solid #D85A30"></div>Mktg &amp; DevRel</div>
+    <div class="leg"><div class="leg-dot" style="background:#D3D1C7;border:1px solid #888780"></div>Other</div>
+    <div class="leg-sep"></div>
+    <div class="leg"><div class="solid-swatch"></div>Employee</div>
+    <div class="leg"><div class="dash-swatch"></div>Contractor</div>
+  </div>
+  <span id="hint">Click to expand · Drag to pan · Scroll to zoom</span>
+</div>
+<div id="canvas"><svg id="osvg"></svg></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+const NW=158,NH=46,HSEP=54,VSEP=10;
+const DC={
+  "Engineering":        {f:"#E6F1FB",s:"#378ADD",t:"#0C447C",t2:"#185FA5"},
+  "Business Operations":{f:"#E1F5EE",s:"#1D9E75",t:"#085041",t2:"#0F6E56"},
+  "Sales":              {f:"#FAEEDA",s:"#BA7517",t:"#633806",t2:"#854F0B"},
+  "Marketing & DevRel": {f:"#FAECE7",s:"#D85A30",t:"#712B13",t2:"#993C1D"},
+  "Other":              {f:"#F1EFE8",s:"#888780",t:"#444441",t2:"#5F5E5A"},
+};
+const EMPS=[
+  {id:"Alex Rattray",        title:"CEO",                       dept:"Engineering",         pid:null,               c:false},
+  {id:"Mark McGranaghan",    title:"CTO & President",           dept:"Engineering",         pid:"Alex Rattray",     c:false},
+  {id:"Miorel Palii",        title:"Head of Product Eng.",      dept:"Engineering",         pid:"Alex Rattray",     c:false},
+  {id:"Shane O'Sullivan",    title:"Eng. Consultant",           dept:"Engineering",         pid:"Alex Rattray",     c:true},
+  {id:"Devyn Greenberg",     title:"Head of Business Ops",      dept:"Business Operations", pid:"Alex Rattray",     c:false},
+  {id:"Daniela Hurtado",     title:"Head of Sales",             dept:"Sales",               pid:"Alex Rattray",     c:false},
+  {id:"Kevin Whinnery",      title:"Head of Mktg & DevRel",     dept:"Marketing & DevRel",  pid:"Alex Rattray",     c:false},
+  {id:"Blake Gentry",        title:"Software Engineer",         dept:"Engineering",         pid:"Alex Rattray",     c:false},
+  {id:"Brandur Leach",       title:"Software Engineer",         dept:"Engineering",         pid:"Alex Rattray",     c:false},
+  {id:"Brent Riddell",       title:"Design Lead",               dept:"Engineering",         pid:"Alex Rattray",     c:false},
+  {id:"Brian Krausz",        title:"Software Engineer",         dept:"Engineering",         pid:"Alex Rattray",     c:false},
+  {id:"Jenan Wise",          title:"Software Engineer",         dept:"Engineering",         pid:"Alex Rattray",     c:false},
+  {id:"Pedro Belo",          title:"Software Engineer",         dept:"Engineering",         pid:"Alex Rattray",     c:false},
+  {id:"Renfred Harper",      title:"SDK Engineer",              dept:"Engineering",         pid:"Alex Rattray",     c:true},
+  {id:"Alex Arena",          title:"Software Engineer",         dept:"Engineering",         pid:"Miorel Palii",     c:false},
+  {id:"Benjamin Yolken",     title:"Software Engineer",         dept:"Engineering",         pid:"Miorel Palii",     c:false},
+  {id:"CJ Quines",           title:"Software Engineer",         dept:"Engineering",         pid:"Miorel Palii",     c:false},
+  {id:"Eric Morphis",        title:"Founding Engineer",         dept:"Engineering",         pid:"Miorel Palii",     c:false},
+  {id:"Gareth Tan",          title:"Software Engineer",         dept:"Engineering",         pid:"Miorel Palii",     c:false},
+  {id:"Karen Petrosyan",     title:"Eng. Consultant",           dept:"Engineering",         pid:"Miorel Palii",     c:true},
+  {id:"Kent William Innholt",title:"Software Engineer",         dept:"Engineering",         pid:"Miorel Palii",     c:false},
+  {id:"Matt Spitz",          title:"Engineering Advisor",       dept:"Other",               pid:"Miorel Palii",     c:true},
+  {id:"Miriam Budayr",       title:"Software Engineer",         dept:"Engineering",         pid:"Miorel Palii",     c:false},
+  {id:"Pierce Clark",        title:"Software Engineer",         dept:"Engineering",         pid:"Miorel Palii",     c:false},
+  {id:"Young-jin Park",      title:"Founding Engineer",         dept:"Engineering",         pid:"Miorel Palii",     c:false},
+  {id:"Em Spencer-Reed",     title:"Software Engineer",         dept:"Engineering",         pid:"Alex Arena",       c:false},
+  {id:"Luke Taylor",         title:"Software Engineer",         dept:"Engineering",         pid:"Alex Arena",       c:false},
+  {id:"Max Freundlich",      title:"Product Engineer",          dept:"Engineering",         pid:"Alex Arena",       c:false},
+  {id:"Ryan Paul",           title:"Software Engineer",         dept:"Engineering",         pid:"Alex Arena",       c:false},
+  {id:"Bruce Hill",          title:"Software Engineer",         dept:"Engineering",         pid:"Shane O'Sullivan",  c:false},
+  {id:"Cameron McAteer",     title:"Software Engineer",         dept:"Engineering",         pid:"Shane O'Sullivan",  c:false},
+  {id:"Hao Wang",            title:"Software Engineer",         dept:"Engineering",         pid:"Shane O'Sullivan",  c:false},
+  {id:"Jacob Zimmerman",     title:"Software Engineer",         dept:"Engineering",         pid:"Shane O'Sullivan",  c:false},
+  {id:"Jérôme Gamez",        title:"SW Eng. (Contractor)",      dept:"Engineering",         pid:"Shane O'Sullivan",  c:true},
+  {id:"Lauren McCarty",      title:"Software Engineer",         dept:"Engineering",         pid:"Shane O'Sullivan",  c:false},
+  {id:"Max Murin",           title:"Software Engineer",         dept:"Engineering",         pid:"Shane O'Sullivan",  c:false},
+  {id:"Mike Cluck",          title:"Software Engineer",         dept:"Engineering",         pid:"Shane O'Sullivan",  c:false},
+  {id:"Nora Sandler",        title:"SDK Eng. (Contractor)",     dept:"Engineering",         pid:"Shane O'Sullivan",  c:true},
+  {id:"Robert Craigie",      title:"SDK Eng. (Contractor)",     dept:"Engineering",         pid:"Shane O'Sullivan",  c:true},
+  {id:"Stephen Downward",    title:"Software Engineer",         dept:"Engineering",         pid:"Shane O'Sullivan",  c:false},
+  {id:"Tomer Aberbach",      title:"Software Engineer",         dept:"Engineering",         pid:"Shane O'Sullivan",  c:false},
+  {id:"Russell Davis",       title:"Software Engineer",         dept:"Engineering",         pid:"Brian Krausz",     c:false},
+  {id:"Alyson Kurtz",        title:"Office Manager",            dept:"Business Operations", pid:"Devyn Greenberg",  c:false},
+  {id:"Bryce Sullivan",      title:"People Operations",         dept:"Business Operations", pid:"Devyn Greenberg",  c:false},
+  {id:"Jeremy Galossi",      title:"Recruiter",                 dept:"Business Operations", pid:"Devyn Greenberg",  c:false},
+  {id:"Joe Schnare",         title:"Fractional CFO",            dept:"Business Operations", pid:"Devyn Greenberg",  c:true},
+  {id:"Katie Trump",         title:"Operations Coordinator",    dept:"Business Operations", pid:"Devyn Greenberg",  c:false},
+  {id:"Silvia Pacio",        title:"Facilities",                dept:"Business Operations", pid:"Alyson Kurtz",     c:true},
+  {id:"Laura Woods",         title:"Recruiting Coordinator",    dept:"Business Operations", pid:"Jeremy Galossi",   c:false},
+  {id:"Alex Lake",           title:"Account Executive",         dept:"Sales",               pid:"Daniela Hurtado",  c:false},
+  {id:"Baaqir Yusuf",        title:"GTM Engineer",              dept:"Sales",               pid:"Daniela Hurtado",  c:false},
+  {id:"Miheer Patankar",     title:"Founding AE",               dept:"Sales",               pid:"Daniela Hurtado",  c:false},
+  {id:"Natanya Meyer",       title:"Account Executive",         dept:"Sales",               pid:"Daniela Hurtado",  c:false},
+  {id:"Russell Coleman",     title:"Account Executive",         dept:"Sales",               pid:"Daniela Hurtado",  c:false},
+  {id:"Sam Gardner",         title:"Business Ops Associate",    dept:"Sales",               pid:"Daniela Hurtado",  c:false},
+  {id:"Uriel Elituv",        title:"Revenue Operations",        dept:"Sales",               pid:"Daniela Hurtado",  c:false},
+  {id:"William Kolman",      title:"Account Executive",         dept:"Sales",               pid:"Daniela Hurtado",  c:false},
+  {id:"CJ Avilla",           title:"DevRel Engineer",           dept:"Marketing & DevRel",  pid:"Kevin Whinnery",   c:false},
+  {id:"David Meadows",       title:"Software Engineer",         dept:"Marketing & DevRel",  pid:"Kevin Whinnery",   c:false},
+  {id:"Justin Michael",      title:"Customer Engineer",         dept:"Marketing & DevRel",  pid:"Kevin Whinnery",   c:false},
+  {id:"Min Kim",             title:"Product Marketing",         dept:"Marketing & DevRel",  pid:"Kevin Whinnery",   c:false},
+  {id:"James Rappazzo",      title:"Customer Eng. (Contractor)",dept:"Marketing & DevRel",  pid:"David Meadows",    c:true},
+  {id:"Jon Harrell",         title:"Customer Engineer",         dept:"Marketing & DevRel",  pid:"David Meadows",    c:false},
+  {id:"Nick Bair",           title:"Customer Engineer",         dept:"Marketing & DevRel",  pid:"David Meadows",    c:false},
+  {id:"Sam El-Borai",        title:"Customer Eng. (Contractor)",dept:"Marketing & DevRel",  pid:"David Meadows",    c:true},
+  {id:"Sara Hannigan",       title:"Technical Impl. Mgr",       dept:"Marketing & DevRel",  pid:"David Meadows",    c:false},
+];
+
+const svg=d3.select("#osvg");
+const g=svg.append("g");
+const zoom=d3.zoom().scaleExtent([0.1,3]).on("zoom",e=>g.attr("transform",e.transform));
+svg.call(zoom).on("dblclick.zoom",null);
+
+const hier=d3.stratify().id(d=>d.id).parentId(d=>d.pid)(EMPS);
+const layout=d3.tree().nodeSize([NH+VSEP,NW+HSEP]);
+
+hier.descendants().forEach(d=>{
+  if(d.depth>=2&&d.children){d._children=d.children;d.children=null;}
+});
+
+function tr(s,n){return s.length>n?s.slice(0,n-1)+"…":s;}
+
+function draw(){
+  layout(hier);
+  g.selectAll("*").remove();
+
+  g.selectAll(".lnk").data(hier.links()).enter().append("path")
+    .attr("fill","none").attr("stroke","#C8C6BC").attr("stroke-width",1)
+    .attr("d",d=>{
+      const sx=d.source.y+NW,sy=d.source.x,tx=d.target.y,ty=d.target.x;
+      const mx=(sx+tx)/2;
+      return `M${sx},${sy}C${mx},${sy} ${mx},${ty} ${tx},${ty}`;
+    });
+
+  const ng=g.selectAll(".nd").data(hier.descendants()).enter().append("g")
+    .attr("transform",d=>`translate(${d.y},${d.x-NH/2})`)
+    .style("cursor",d=>(d._children||d.children)?"pointer":"default")
+    .on("click",(_,d)=>{
+      if(d.children){d._children=d.children;d.children=null;}
+      else if(d._children){d.children=d._children;d._children=null;}
+      draw();
+    });
+
+  ng.each(function(d){
+    const c=DC[d.data.dept]||DC["Other"];
+    const s=d3.select(this);
+    const isOpen=!!d.children;
+    const hasToggle=!!(d.children||d._children);
+
+    s.append("rect").attr("width",NW).attr("height",NH).attr("rx",6)
+      .attr("fill",c.f).attr("stroke",c.s)
+      .attr("stroke-width",d.depth===0?2:1.5)
+      .attr("stroke-dasharray",d.data.c?"5,3":null);
+
+    s.append("text").attr("x",8).attr("y",17).attr("font-size","12px")
+      .attr("font-weight","600").attr("fill",c.t)
+      .attr("font-family","-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif")
+      .text(tr(d.id,20));
+
+    s.append("text").attr("x",8).attr("y",31).attr("font-size","10px")
+      .attr("fill",c.t2)
+      .attr("font-family","-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif")
+      .text(tr(d.data.title,26));
+
+    if(d.data.c){
+      s.append("text").attr("x",NW-6).attr("y",NH-5)
+        .attr("text-anchor","end").attr("font-size","9px")
+        .attr("fill",c.t2).attr("font-style","italic")
+        .attr("font-family","-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif")
+        .text("contractor");
+    }
+
+    if(hasToggle){
+      const cnt=isOpen?d.children.length:d._children.length;
+      s.append("circle").attr("cx",NW+1).attr("cy",NH/2).attr("r",11)
+        .attr("fill",c.s).attr("stroke","white").attr("stroke-width",1.5);
+      s.append("text").attr("x",NW+1).attr("y",NH/2+4)
+        .attr("text-anchor","middle").attr("font-size","10px").attr("font-weight","600")
+        .attr("fill","white").attr("pointer-events","none")
+        .attr("font-family","-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif")
+        .text(isOpen?"−":`+${cnt}`);
+    }
+  });
+}
+
+draw();
+
+window.addEventListener("load",()=>{
+  setTimeout(()=>{
+    const bb=g.node().getBBox();
+    const W=document.getElementById("canvas").clientWidth;
+    const H=document.getElementById("canvas").clientHeight;
+    const sc=Math.min((W-60)/(bb.width+20),(H-60)/(bb.height+20),0.85);
+    const tx=(W-bb.width*sc)/2-bb.x*sc;
+    const ty=(H-bb.height*sc)/2-bb.y*sc;
+    svg.call(zoom.transform,d3.zoomIdentity.translate(tx,ty).scale(sc));
+  },100);
+});
+</script>
+</body>
+</html>
